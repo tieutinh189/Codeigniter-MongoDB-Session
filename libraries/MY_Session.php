@@ -9,7 +9,7 @@ class MY_Session extends CI_Session
 
     //@todo add config
     private $sess_use_mongo_database = TRUE;
-    private $sess_collection_name = 'session';
+    private $sess_collection_name = 'session_idoc_v2';
     public $CI;
 
     /**
@@ -111,7 +111,7 @@ class MY_Session extends CI_Session
                 $where['user_agent'] = $session['user_agent'];
             }
 
-            $query = $this->CI->mongo_db->{$this->sess_collection_name}->findOne($where);
+            $query = $this->CI->mongo_db->where($where)->getOne($this->sess_collection_name);
             // No result? Kill it!
             if (count($query) == 0)
             {
@@ -185,8 +185,9 @@ class MY_Session extends CI_Session
 
         // Run the update query
 
-        $this->CI->mongo_db->{$this->sess_collection_name}
-                ->update(array('_id' => new MongoId($this->userdata['session_id'])), array('$set' => array('last_activity' => $this->userdata['last_activity'], 'user_data' => $custom_userdata)));
+        $this->CI->mongo_db->where(array('_id' => new MongoId($this->userdata['session_id'])))
+				->set(array('last_activity' => $this->userdata['last_activity'], 'user_data' => $custom_userdata))
+				->update($this->sess_collection_name);
 
         // Write the cookie. Notice that we manually pass the cookie data array to the
         // _set_cookie() function. Normally that function will store $this->userdata, but
@@ -227,7 +228,7 @@ class MY_Session extends CI_Session
             $_userdata = $this->userdata;
             $_userdata['_id'] = new MongoId($_userdata['session_id']);
             unset($_userdata['session_id']);
-            $this->CI->mongo_db->{$this->sess_collection_name}->insert($_userdata);
+            $this->CI->mongo_db->insert($this->sess_collection_name, $_userdata);
             unset($_userdata);
         }
 
@@ -284,12 +285,12 @@ class MY_Session extends CI_Session
                 $cookie_data[$val] = $this->userdata[$val];
             }
 
-            $current = $this->CI->mongo_db->{$this->sess_collection_name}->findOne(array('_id' => new MongoId($old_sessid)));
+            $current = $this->CI->mongo_db->where( array('_id' => new MongoId($old_sessid)) )->getOne($this->sess_collection_name);
             $current['_id'] = new MongoId($new_sessid);
-            $this->CI->mongo_db->{$this->sess_collection_name}
-                    ->remove(array('_id' => new MongoId($old_sessid)));
-            $this->CI->mongo_db->{$this->sess_collection_name}
-                    ->insert($current);
+            
+			$this->CI->mongo_db->where(array('_id' => new MongoId($old_sessid)))->delete($this->sess_collection_name);
+					
+            $this->CI->mongo_db->insert($this->sess_collection_name, $current);
         }
 
         // Write the cookie
@@ -309,8 +310,7 @@ class MY_Session extends CI_Session
         // Kill the session DB row
         if ($this->sess_use_mongo_database === TRUE AND isset($this->userdata['session_id']))
         {
-            $this->CI->mongo_db->{$this->sess_collection_name}
-                    ->remove(array('_id' => new MongoId($this->userdata['session_id'])));
+            $this->CI->mongo_db->where((array('_id' => new MongoId($this->userdata['session_id']))))->delete($this->sess_collection_name);
         }
 
         // Kill the cookie
@@ -342,8 +342,7 @@ class MY_Session extends CI_Session
         {
             $expire = $this->now - $this->sess_expiration;
 
-            $this->CI->mongo_db->{$this->sess_collection_name}
-                    ->remove(array('last_activity' => array('$lt' => $expire)));
+            $this->CI->mongo_db->where(array('last_activity' => array('$lt' => $expire)))->delete($this->sess_collection_name);
             log_message('debug', 'Session garbage collection performed.');
         }
     }
